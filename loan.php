@@ -1,15 +1,25 @@
 <!DOCTYPE HTML>
 <?PHP
 	require 'functions.php';
-	check_logon();
+	checkLogin();
 	connect();
-	check_loanid();
+	getLoanID();
 	$timestamp = time();
 	
-	//UPDATE STATUS-Button
+	// Select details of current loan from LOANS, LOANSTATUS, CUSTOMER
+	$sql_loan = "SELECT * FROM loans JOIN loanstatus ON loans.loanstatus_id = loanstatus.loanstatus_id JOIN customer ON loans.cust_id = customer.cust_id WHERE loan_id = $_SESSION[loan_id]";
+	$query_loan = mysql_query($sql_loan);
+	checkSQL($query_loan);
+	$result_loan = mysql_fetch_assoc($query_loan);
+	$_SESSION['cust_id'] = $result_loan['cust_id'];
+	
+	// Get current customer's savings account balance
+	$sav_balance = getSavingsBalance($_SESSION['cust_id']);
+	
+	/** UPDATE STATUS-Button **/
 	if (isset($_POST['updatestatus'])){
 		
-		//Sanitize user input
+		// Sanitize user input
 		$loan_principal = $_SESSION['loan_principal'];
 		$loan_interest = $_SESSION['loan_interest'];
 		$loan_period = $_SESSION['loan_period'];
@@ -25,25 +35,25 @@
 			include ($_SESSION['set_intcalc']);
 			
 			//Insert Loan Fee into INCOMES
-			$sql_inc_lf = "INSERT INTO incomes (cust_id, inctype_id, inc_amount, inc_date, inc_receipt, inc_created, user_id) VALUES ('$_SESSION[cust_id]', '3', '$loan_fee', '$loan_dateout', '$loan_fee_receipt', '$timestamp', '$_SESSION[log_id]')";
+			$sql_inc_lf = "INSERT INTO incomes (cust_id, loan_id, inctype_id, inc_amount, inc_date, inc_receipt, inc_created, user_id) VALUES ('$_SESSION[cust_id]', '$_SESSION[loan_id]', '3', '$loan_fee', '$loan_dateout', '$loan_fee_receipt', '$timestamp', '$_SESSION[log_id]')";
 			$query_inc_lf = mysql_query($sql_inc_lf);
-			check_sql($query_inc_lf);
+			checkSQL($query_inc_lf);
 			
 			//Update the Loan to "Approved" and "Issued"
 			$sql_issue = "UPDATE loans SET loanstatus_id = '$loan_status', loan_issued = '1', loan_dateout = '$loan_dateout', loan_fee_receipt = '$loan_fee_receipt' WHERE loan_id = '$_SESSION[loan_id]'";
 			$query_issue = mysql_query($sql_issue);
-			check_sql($query_issue);
+			checkSQL($query_issue);
 		}
 		
 		else {		
 			$sql_update = "UPDATE loans SET loanstatus_id = '$_POST[loan_status]' WHERE loan_id = $_SESSION[loan_id]";
 			$query_update = mysql_query($sql_update);
-			check_sql($query_update);
+			checkSQL($query_update);
 		}
 		header('Location: loan.php?lid='.$_SESSION['loan_id']);
 	}
 	
-	//MAKE REPAYMENT Button
+	/** MAKE REPAYMENT Button **/
 	if(isset($_POST['repay'])){
 		
 		//Sanitize User Input
@@ -52,36 +62,52 @@
 		$loan_repay_date = sanitize(strtotime($_POST['loan_repay_date']));
 		$loan_repay_sav = sanitize($_POST['loan_repay_sav']);
 		
-		//If the paid amount exceeds the total outstanding balance, the remaining principal and interest are served and the rest goes to savings.
+	/** If the paid amount exceeds the total outstanding balance, 
+		* the remaining principal and interest are served 
+		* and the rest goes to savings. */
 		if ($loan_repay_amount > $_SESSION['balance']){
 			$loan_repay_interest = $_SESSION['i_balance'];
 			$loan_repay_principal = $_SESSION['p_balance'];
 			$loan_repay_savings = $loan_repay_amount - $loan_repay_interest - $loan_repay_principal;
 		}
-		//If, however, the paid amount is smaller than the total outstanding balance...
+		
+		/** If, however, the paid amount is smaller than the total outstanding balance... */
 		else {
-			//Check if total interest has been paid off.
+			
+			// Check if total interest has been paid off.
 			if ($_SESSION['i_balance'] <= 0 AND $_SESSION['p_balance'] > 0){
 					$loan_repay_interest = 0;
 					$loan_repay_principal = $loan_repay_amount;
 			}
-			//Check if total principal has been paid off.
+			
+			// Check if total principal has been paid off.
 			elseif ($_SESSION['i_balance'] > 0 AND $_SESSION['p_balance'] <= 0){
 					$loan_repay_interest = $loan_repay_amount;
 					$loan_repay_principal = 0;
 			}
-			//Otherwise, if principal AND interest both show an open balance...
+			
+			// Otherwise, if principal AND interest both show an open balance...
 			elseif ($_SESSION['i_balance'] > 0 AND $_SESSION['p_balance'] > 0){
-				//Check if the paid amount is less than the interest due. In that case, everything goes to interest only.
+				
+				/**
+					* Check if the paid amount is less than the interest due. 
+					* In that case, everything goes to interest only.
+					*/
 				if ($loan_repay_amount < $_SESSION['interest_sum']){
 					$loan_repay_interest = $loan_repay_amount;
 					$loan_repay_principal = 0;
 				}
-				//If, however, the paid amount exceeds the due interest PLUS the total outstanding balance, the excess money serves interest.
+				
+			/** 
+				* If, however, the paid amount exceeds 
+				* the due interest PLUS the total outstanding balance, 
+				* the excess money is used on interest.
+				*/
 				elseif ($loan_repay_amount > ($_SESSION['interest_sum'] + $_SESSION['p_balance'])){
 					$loan_repay_principal = $_SESSION['p_balance'];
 					$loan_repay_interest = $loan_repay_amount - $loan_repay_principal;
 				}
+				
 				//Otherwise, the paid amount is split between interest and principal. This is probably the most common case!
 				else {
 					$loan_repay_interest = $_SESSION['interest_sum'];
@@ -90,109 +116,130 @@
 			}
 		}
 		
-		//Check for smallest LTRANS_ID to determine whether an UPDATE or INSERT is needed
+		// Check for smallest LTRANS_ID to determine whether an UPDATE or INSERT is needed
 		$sql_ltransid = "SELECT MIN(ltrans_id) FROM ltrans WHERE loan_id = $_SESSION[loan_id] AND ltrans_date IS NULL AND ltrans_due IS NOT NULL";
 		$query_ltransid = mysql_query($sql_ltransid);
-		check_sql($query_ltransid);
+		checkSQL($query_ltransid);
 		$ltransid_result = mysql_fetch_assoc($query_ltransid);
 		$ltransid = $ltransid_result['MIN(ltrans_id)'];
 		
 		if(!isset($ltransid)){
 			$sql_insertrepay = "INSERT INTO ltrans (loan_id, ltrans_date, ltrans_principal, ltrans_interest, ltrans_receipt, ltrans_created, user_id) VALUES ($_SESSION[loan_id], $loan_repay_date, '$loan_repay_principal', '$loan_repay_interest', '$loan_repay_receipt', $timestamp, '$_SESSION[log_id]')";
 			$query_insertrepay = mysql_query($sql_insertrepay);
-			if (!$query_insertrepay) die ('INSERT failed: '.mysql_error());
+			checkSQL($query_insertrepay);
+			
+			// Get LTRANS_ID of latest entry
+			$sql_ltransid = "SELECT MAX(ltrans_id) FROM ltrans WHERE loan_id = '$_SESSION[loan_id]' AND ltrans_receipt = '$loan_repay_receipt' AND ltrans_created = '$timestamp'";
+			$query_ltransid = mysql_query($sql_ltransid);
+			checkSQL($query_ltransid);
+			$ltransid_result = mysql_fetch_row($query_ltransid);
+			$ltransid = $ltransid_result[0];
 		}
 		else {
 			$sql_updaterepay = "UPDATE ltrans SET ltrans_date = $loan_repay_date, ltrans_principal = '$loan_repay_principal', ltrans_interest = '$loan_repay_interest', ltrans_receipt = '$loan_repay_receipt', ltrans_created = '$timestamp', user_id = '$_SESSION[log_id]' WHERE ltrans_id = $ltransid";
 			$query_updaterepay = mysql_query($sql_updaterepay);
-			if (!$query_updaterepay) die ('UPDATE failed: '.mysql_error());
+			checkSQL($query_updaterepay);
 		}
 		
-		//If interest is paid, insert the amount into INCOMES
+		// If interest is paid, insert the amount into INCOMES
 		if($loan_repay_interest > 0){
-			$sql_incint = "INSERT INTO incomes (cust_id, inctype_id, inc_amount, inc_date, inc_receipt, inc_created, user_id) VALUES ('$_SESSION[cust_id]', '4', '$loan_repay_interest', '$loan_repay_date', '$loan_repay_receipt', $timestamp, '$_SESSION[log_id]')";
+			$sql_incint = "INSERT INTO incomes (cust_id, inctype_id, ltrans_id, inc_amount, inc_date, inc_receipt, inc_created, user_id) VALUES ('$_SESSION[cust_id]', '4', '$ltransid', '$loan_repay_interest', '$loan_repay_date', '$loan_repay_receipt', $timestamp, '$_SESSION[log_id]')";
 			$query_incint = mysql_query($sql_incint);
-			check_sql($query_incint);
+			checkSQL($query_incint);
 		}
 		
-		//If Payment is made from savings, withdraw the amount from there
+		// If Payment is made from savings, withdraw the amount from there
 		if ($loan_repay_sav == 1) {
 			$loan_repay_amount_sav = $loan_repay_amount * (-1);
-			$sql_insert = "INSERT INTO savings (cust_id, sav_date, sav_amount, savtype_id, sav_receipt, sav_created, user_id) VALUES ($_SESSION[cust_id], $loan_repay_date, $loan_repay_amount_sav, 8, $loan_repay_receipt, $timestamp, $_SESSION[log_id])";
+			
+			$sql_insert = "INSERT INTO savings (cust_id, ltrans_id, sav_date, sav_amount, savtype_id, sav_receipt, sav_created, user_id) VALUES ($_SESSION[cust_id], $ltransid, $loan_repay_date, $loan_repay_amount_sav, 8, $loan_repay_receipt, $timestamp, $_SESSION[log_id])";
 			$query_insert = mysql_query($sql_insert);
+			
+			// Update savings account balance
+			updateSavingsBalance($_SESSION['cust_id']);
 		}
 		
 		//If amount paid exceeds the remaining balance for that loan, put the rest in SAVINGS.
 		if(isset($loan_repay_savings)){
-			$sql_restsav = "INSERT INTO savings (cust_id, sav_date, sav_amount, savtype_id, sav_receipt, sav_created, user_id) VALUES ($_SESSION[cust_id], $loan_repay_date, $loan_repay_savings, '1', $loan_repay_receipt, $timestamp, '$_SESSION[log_id]')";
+			$sql_restsav = "INSERT INTO savings (cust_id, ltrans_id, sav_date, sav_amount, savtype_id, sav_receipt, sav_created, user_id) VALUES ($_SESSION[cust_id], $ltransid, $loan_repay_date, $loan_repay_savings, '1', $loan_repay_receipt, $timestamp, '$_SESSION[log_id]')";
 			$query_restsav = mysql_query($sql_restsav);
-			check_sql($query_restsav);
+			checkSQL($query_restsav);
+			
+			// Update savings account balance
+			updateSavingsBalance($_SESSION['cust_id']);
 		}
 
 		header('Location: loan.php?lid='.$_SESSION['loan_id']);
 	}
 	
-	//CHARGE DEFAULT FINE Button
+	/** CHARGE DEFAULT FINE Button **/
 	if(isset($_POST['fine'])){
 		
-		//Sanitize User Input
+		// Sanitize user input
 		$fine_amount = sanitize($_POST['fine_amount']);
 		$fine_receipt = sanitize($_POST['fine_receipt']);
 		$fine_date = strtotime(sanitize($_POST['fine_date']));
 		$fine_sav = sanitize($_POST['fine_sav']);
 		
-		//Insert Fine as Income in INCOMES
-		$sql_fine_inc = "INSERT INTO incomes (cust_id, inctype_id, inc_amount, inc_date, inc_receipt, inc_created, user_id) VALUES ('$_SESSION[cust_id]', '5', '$fine_amount', '$fine_date', '$fine_receipt', $timestamp, '$_SESSION[log_id]')";
-		$query_fine_inc = mysql_query($sql_fine_inc);
-		check_sql($query_fine_inc);
+		// Get LTRANS_ID for chargable transaction 
+		$sql_ltrans = "SELECT MIN(ltrans_id) FROM ltrans WHERE ltrans.loan_id = '$_SESSION[loan_id]' AND ltrans_due < '$timestamp' AND ltrans_fined = '0' AND ltrans_date IS NULL";
+		$query_ltrans = mysql_query($sql_ltrans);
+		checkSQL($query_ltrans);
+		$ltrans = mysql_fetch_row($query_ltrans);
 		
-		//Deduct Fine from Savings Account
+		// Flag loan transaction as 'fined'
+		$sql_ltrans_fined = "UPDATE ltrans SET ltrans_fined = '1', ltrans_created = '$timestamp', user_id = '$_SESSION[log_id]' WHERE ltrans_id = '$ltrans[0]'";
+		$query_ltrans_fined = mysql_query($sql_ltrans_fined);
+		checkSQL($query_ltrans_fined);
+		
+		// Deduct fine from savings account if applicable
 		if($fine_sav == 1){
-			$sql_fine_sav = "INSERT INTO savings (cust_id, sav_date, sav_amount, savtype_id, sav_receipt, sav_created, user_id) VALUES ('$_SESSION[cust_id]', '$fine_date', ('$fine_amount' * -1), 6, '$fine_receipt', $timestamp, '$_SESSION[log_id]')";
+			$fine_amount_sav = $fine_amount * (-1);
+			
+			$sql_fine_sav = "INSERT INTO savings (cust_id, ltrans_id, sav_date, sav_amount, savtype_id, sav_receipt, sav_created, user_id) VALUES ('$_SESSION[cust_id]', '$ltrans[0]', '$fine_date', '$fine_amount_sav', 6, '$fine_receipt', $timestamp, '$_SESSION[log_id]')";
 			$query_fine_sav = mysql_query($sql_fine_sav);
-			check_sql($query_fine_sav);
+			checkSQL($query_fine_sav);
+			
+			// Update savings account balance
+			updateSavingsBalance($_SESSION['cust_id']);
+			
+			// Get SAV_ID for the latest entry
+			$sql_savid = "SELECT MAX(sav_id) FROM savings WHERE ltrans_id = '$ltrans[0]' AND sav_receipt = '$fine_receipt' AND sav_created = '$timestamp'";
+			$query_savid = mysql_query($sql_savid);
+			checkSQL($query_savid);
+			$sav_id = mysql_fetch_row($query_savid);
 		}
 		
-		//Flag Loantransaction as 'Fined'
-		$sql_ltrans_fined = "UPDATE ltrans SET ltrans_fined = '1', ltrans_created = '$timestamp', user_id = '$_SESSION[log_id]' WHERE ltrans.loan_id = '$_SESSION[loan_id]' AND ltrans_due < '$timestamp' AND ltrans_fined = '0'";
-		$query_ltrans_fined = mysql_query($sql_ltrans_fined);
-		check_sql($query_ltrans_fined);
+		// Insert fine as income in INCOMES
+		$sql_fine_inc = "INSERT INTO incomes (cust_id, ltrans_id, sav_id, inctype_id, inc_amount, inc_date, inc_receipt, inc_created, user_id) VALUES ('$_SESSION[cust_id]', '$ltrans[0]', $sav_id[0], '5', '$fine_amount', '$fine_date', '$fine_receipt', $timestamp, '$_SESSION[log_id]')";
+		$query_fine_inc = mysql_query($sql_fine_inc);
+		checkSQL($query_fine_inc);
 		
 		header('Location: loan.php?lid='.$_SESSION['loan_id']);
 	}
 	
-	//Select details for Loan from LOANS, LOANSTATUS, CUSTOMER
-	$sql_loan = "SELECT * FROM loans, loanstatus, customer WHERE loans.loanstatus_id = loanstatus.loanstatus_id AND loans.cust_id = customer.cust_id AND loan_id = $_SESSION[loan_id]";
-	$query_loan = mysql_query($sql_loan);
-	check_sql($query_loan);
-	$result_loan = mysql_fetch_assoc($query_loan);
-	$_SESSION['cust_id'] = $result_loan['cust_id'];
-	
-	//Select Instalments from LTRANS
+	// Select Instalments from LTRANS
 	$sql_duedates = "SELECT * FROM ltrans, user WHERE ltrans.user_id = user.user_id AND loan_id = $_SESSION[loan_id] ORDER BY ltrans_id";
 	$query_duedates = mysql_query($sql_duedates);
-	check_sql($query_duedates);
+	checkSQL($query_duedates);
 	
-	//Select Guarantors from CUSTOMER
+	// Select Guarantors from CUSTOMER
 	$sql_guarant = "SELECT cust_id, cust_name FROM customer";
 	$query_guarant = mysql_query($sql_guarant);
-	check_sql($query_guarant);
+	checkSQL($query_guarant);
 	$guarantors = array();
 	while ($row_guarant = mysql_fetch_assoc($query_guarant)) $guarantors[] = $row_guarant;
 	
-	//Select Securities from SECURITIES and get file paths for securities
+	// Select Securities from SECURITIES and get file paths for securities
 	$sql_secur = "SELECT * FROM securities WHERE loan_id = $_SESSION[loan_id]";
 	$query_secur = mysql_query($sql_secur);
-	check_sql($query_secur);
+	checkSQL($query_secur);
 	$securities = array();
 	while ($row_secur = mysql_fetch_assoc($query_secur)) $securities[] = $row_secur;
 	foreach ($securities as $s){
 		if ($s['sec_no'] == 1) $sec_path1 = $s['sec_path'];
 		elseif ($s['sec_no'] == 2) $sec_path2 = $s['sec_path'];
 	}
-	
-	//Get Savings Balance
-	$sav_balance = get_savbalance();
 	
 	//Prepare array data export
 	$ltrans_exp_date = date("Y-m-d",time());
@@ -201,7 +248,7 @@
 ?>
 
 <html>
-	<?PHP include_Head('Loan Details',0) ?>	
+	<?PHP includeHead('Loan Details',0) ?>	
 		<script type="text/javascript">				
 			function firstIssue(form){
 				status = form.loan_status.value;
@@ -257,7 +304,7 @@
 	<body>
 		<!-- MENU -->
 		<?PHP 
-				include_Menu(3);
+				includeMenu(3);
 		?>
 		<!-- MENU MAIN -->
 		<div id="menu_main">
@@ -358,7 +405,7 @@
 					<tr>
 						<td>Issued on:</td>
 						<td>
-							<input type="text" name="loan_dateout"
+							<input type="text" id="datepicker" name="loan_dateout"
 								<?PHP 
 								if($result_loan['loan_issued'] == 1) {
 									echo ' disabled="disabled"';
@@ -504,13 +551,13 @@
 					<td><?PHP echo number_format($i_paid); ?></td>
 					<td colspan="4"></td>
 				</tr>
-				<tr style="">
-					<td style="font-style:italic;">Remaining:</td>
+				<tr>
+					<td>Remaining:</td>
 					<td></td>
-					<td style="font-style:italic"><?PHP echo number_format($p_due - $p_paid); ?></td>
+					<td><?PHP echo number_format($p_due - $p_paid); ?></td>
 					<td></td>
-					<td style="font-style:italic"><?PHP echo number_format($i_due - $i_paid); ?></td>
-					<td colspan="5	"></td>
+					<td><?PHP echo number_format($i_due - $i_paid); ?></td>
+					<td colspan="5"></td>
 				</tr>
 			</table>
 
@@ -521,7 +568,7 @@
 				<table id="tb_fields" style="width:75%">
 					<tr>
 						<td>Date Paid:</td>
-						<td><input type="text" name="loan_repay_date" value="'.date("d.m.Y", $timestamp).'" placeholder="DD.MM.YYYY" /></td>
+						<td><input type="text" id="datepicker2" name="loan_repay_date" value="'.date("d.m.Y", $timestamp).'" placeholder="DD.MM.YYYY" /></td>
 						<td>Amount Paid:</td>
 						<td><input type="number" name="loan_repay_amount" class="defaultnumber" placeholder="'.$_SESSION['set_cur'].'" /></td>
 					</tr>
@@ -546,13 +593,13 @@
 				if ($result_loan['loanstatus_id'] == 2 && $loan_default != 0) 
 					echo '<table id="tb_fields" style="width:75%; background:#a7dbd8">
 									<tr>
-										<td>Date Paid:</td>
+										<td>Date:</td>
 										<td>
-											<input type="text" name="fine_date" value="'.date("d.m.Y", $timestamp).'" placeholder="DD.MM.YYYY" />
+											<input type="text" id="datepicker3" name="fine_date" value="'.date("d.m.Y", $timestamp).'" placeholder="DD.MM.YYYY" />
 										</td>
 										<td>Amount fined:</td>
 										<td>
-											<input type="number" name="fine_amount" class="defaultnumber" placeholder="'.$_SESSION['set_cur'].'" />
+											<input type="number" name="fine_amount" class="defaultnumber" placeholder="'.$_SESSION['set_cur'].'" value="'.$_SESSION['fee_loanfine'].'" />
 										</td>
 									</tr>
 									<tr>

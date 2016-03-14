@@ -1,37 +1,42 @@
 <!DOCTYPE HTML>
 <?PHP
 	require 'functions.php';
-	check_logon();
+	checkLogin();
 	connect();
-	check_custid();
+	getCustID();
 
 	//Generate timestamp
 	$timestamp = time();
+		
+	// Get savings balance for current customer
+	$sav_balance = getSavingsBalance($_SESSION['cust_id']);
 	
-	//DEPOSIT-Button
+	// DEPOSIT-Button
 	if (isset($_POST['deposit'])){
 		
-		//Sanitize user input
+		// Sanitize user input
 		$sav_amount = sanitize($_POST['sav_amount']);
 		$sav_receipt = sanitize($_POST['sav_receipt']);
 		$sav_date = strtotime(sanitize($_POST['sav_date']));
-		$timestamp = time();
 		
-		//Insert into SAVINGS
+		// Insert savings transaction into SAVINGS
 		$sql_insert = "INSERT INTO savings (cust_id, sav_date, sav_amount, savtype_id, sav_receipt, sav_created, user_id) VALUES ('$_SESSION[cust_id]', '$sav_date', '$sav_amount', '1', '$sav_receipt', '$timestamp', '$_SESSION[log_id]')";
 		$query_insert = mysql_query($sql_insert);
-		check_sql($query_insert);
+		checkSQL($query_insert);
+		
+		// Update savings account balance
+		updateSavingsBalance($_SESSION['cust_id']);
 		
 		//Refer to acc_sav_depos.php
 		header('Location: acc_sav_depos.php?cust='.$_SESSION['cust_id']);
 	}
 	
 	//Get current customer's details
-	$result_cust = get_customer();
+	$result_cust = getCustomer();
 ?>
 
 <html>
-	<?PHP include_Head('Savings Deposit',0) ?>	
+	<?PHP includeHead('Savings Deposit',0) ?>	
 		<script>
 			function validate(form){
 				fail = validateDate(form.sav_date.value)
@@ -47,7 +52,7 @@
 	
 	<body>
 		<!-- MENU -->
-		<?PHP include_Menu(2); ?>
+		<?PHP includeMenu(2); ?>
 		<div id="menu_main">
 			<a href="customer.php?cust=<?PHP echo $_SESSION['cust_id'] ?>">Back</a>
 			<a href="cust_search.php">Search</a>
@@ -70,7 +75,7 @@
 				<table id="tb_fields">
 					<tr>
 						<td>Date:</td>
-						<td><input type="text" name="sav_date" value="<?PHP echo date("d.m.Y",$timestamp); ?>" required="required" /></td>
+						<td><input type="text" id="datepicker" name="sav_date" value="<?PHP echo date("d.m.Y",$timestamp); ?>" required="required" /></td>
 					</tr>
 					<tr>
 						<td>Receipt No:</td>

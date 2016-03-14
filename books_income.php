@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <?PHP
 	require 'functions.php';
-	check_logon();
+	checkLogin();
 	connect();
 	$timestamp = time();
 	
@@ -14,37 +14,49 @@
 		$inc_date = strtotime(sanitize($_POST['inc_date']));
 		$inc_text = sanitize($_POST['inc_text']);
 		$inc_recipient = sanitize($_POST['cust_id']);
+		$inc_loan = sanitize($_POST['loan_id']);
 		$inc_receipt = sanitize($_POST['inc_receipt']);
+		if($inc_recipient == 0) $inc_recipient = NULL;
+		if($inc_loan == 0) $inc_loan = NULL;
 		
 		//Insert into INCOMES
-		$sql_incnew = "INSERT INTO incomes (inctype_id, inc_amount, inc_date, cust_id, inc_receipt, inc_text, inc_created, user_id) VALUES ('$inctype_id', '$inc_amount', '$inc_date', '$inc_recipient', '$inc_receipt', '$inc_text', '$timestamp', '$_SESSION[log_id]')";
+		$sql_incnew = "INSERT INTO incomes (cust_id, loan_id, inctype_id, inc_amount, inc_date, inc_receipt, inc_text, inc_created, user_id) VALUES ('$inc_recipient', '$inc_loan', '$inctype_id', '$inc_amount', '$inc_date', '$inc_receipt', '$inc_text', '$timestamp', '$_SESSION[log_id]')";
 		$query_incnew = mysql_query($sql_incnew);
-		check_sql($query_incnew);
+		checkSQL($query_incnew);
 	}
 
-	//Select current incomes from INCOMES
-	$sixtydays = time() - 5184000;
-	$sql_inccur = "SELECT * FROM incomes, inctype, customer WHERE incomes.inctype_id = inctype.inctype_id AND incomes.cust_id = customer.cust_id AND inc_date > $sixtydays ORDER BY inc_date DESC, inc_receipt DESC, incomes.cust_id";
+	//Select recent incomes from INCOMES
+	$sixtydays = time() - convertDays(60);
+	$sql_inccur = "SELECT * FROM incomes LEFT JOIN inctype ON incomes.inctype_id = inctype.inctype_id LEFT JOIN customer ON incomes.cust_id = customer.cust_id WHERE inc_date > $sixtydays ORDER BY inc_date DESC, inc_receipt DESC, incomes.cust_id";
 	$query_inccur = mysql_query($sql_inccur);
-	check_sql($query_inccur);
+	checkSQL($query_inccur);
 	
 	//Select Types of Incomes from INCTYPE
 	$sql_inctype = "SELECT * FROM inctype";
 	$query_inctype = mysql_query($sql_inctype);
-	check_sql ($query_inctype);
+	checkSQL ($query_inctype);
 	
 	//Select Customers from CUSTOMER
 	$sql_custfrom = "SELECT * FROM customer WHERE cust_active = 1";
 	$query_custfrom = mysql_query($sql_custfrom);
-	check_sql($query_custfrom);
+	checkSQL($query_custfrom);
 	$custfrom = array();
 	while ($row_custfrom = mysql_fetch_assoc($query_custfrom)){
 		$custfrom[] = $row_custfrom;
 	};
+	
+	//Select Loans from LOANS
+	$sql_loans = "SELECT * FROM loans INNER JOIN customer ON loans.cust_id = customer.cust_id WHERE loanstatus_id IN (1,2) ORDER BY cust_no, loan_no";
+	$query_loans = mysql_query($sql_loans);
+	checkSQL($query_loans);
+	$loans = array();
+	while ($row_loans = mysql_fetch_assoc($query_loans)){
+		$loans[] = $row_loans;
+	};
 ?>
 
 <html>
-	<?PHP include_Head('Incomes',0) ?>	
+	<?PHP includeHead('Incomes',0) ?>	
 		<script>
 			function validate(form){
 				fail = validateDate(form.inc_date.value)
@@ -61,11 +73,7 @@
 	<body>
 	
 		<!-- MENU -->
-		<?PHP 
-				include_Menu(4);
-		?>
-	
-		<!-- MENU MAIN -->
+		<?PHP includeMenu(4); ?>
 		<div id="menu_main">
 			<a href="start.php">Back</a>
 			<a href="books_expense.php">Expenses</a>
@@ -73,7 +81,6 @@
 			<a href="books_annual.php">Annual Accounts</a>
 		</div>
 		
-			
 		<!-- LEFT SIDE: Form for entering new expenditure -->
 		<div class="content_left">
 			
@@ -84,14 +91,17 @@
 					<tr>
 						<td>Date:</td>
 						<td>
-							<input type="text" name="inc_date" value="<?PHP echo date("d.m.Y",$timestamp); ?>"/>
+							<input type="text" id="datepicker" name="inc_date" value="<?PHP echo date("d.m.Y",$timestamp); ?>"/>
 						</td>
 						<td>Type:</td>
 						<td>
 							<select name="inctype_id" />
 								<?PHP
+								$no_show = array(2,4,5);	// Do not allow to choose one of the following income types
 								while ($row_inctype = mysql_fetch_assoc($query_inctype)){
-									echo '<option value="'.$row_inctype['inctype_id'].'">'.$row_inctype['inctype_type'].'</option>';
+									if(!in_array($row_inctype['inctype_id'], $no_show)){
+										echo '<option value="'.$row_inctype['inctype_id'].'">'.$row_inctype['inctype_type'].'</option>';
+									}
 								}
 								?>
 							</select>
@@ -115,6 +125,19 @@
 								?>
 							</select>
 						</td>
+						<td>Loan:</td>
+						<td>
+							<select name="loan_id">
+								<option value="0" selected="selected">N/A</option>
+								<?PHP
+								foreach ($loans as $ln){
+									echo '<option value="'.$ln['loan_id'].'">'.$ln['loan_no'].' ('.$ln['cust_name'].')</option>';
+								}
+								?>
+							</select>
+						</td>
+					</tr>
+					<tr>
 						<td>Details:</td>
 						<td><input type="text" name="inc_text"/></td>
 					</tr>
@@ -123,7 +146,7 @@
 			</form>
 		</div>
 		
-		<!-- RIGHT SIDE: Incomes of the current month -->
+		<!-- RIGHT SIDE: Recent Incomes -->
 		<div class="content_right">
 			
 			<table id="tb_table">
@@ -136,7 +159,7 @@
 					<col width="15%">
 				</colgroup>
 				<tr>
-					<th class="title" colspan="7">Current Incomes</th>
+					<th class="title" colspan="7">Recent Incomes</th>
 				</tr>
 				<tr>
 					<th>Date</th>
@@ -148,6 +171,7 @@
 					<th>Delete</th>
 				</tr>
 			<?PHP
+			$no_delete = array(2,4,5);	// Do not allow to delete one of the following income types
 			$color=0;
 			while ($row_inccur = mysql_fetch_assoc($query_inccur)){
 				tr_colored($color); 		//Alternating row colors
@@ -158,7 +182,7 @@
 								<td>'.$row_inccur['inc_receipt'].'</td>
 								<td>'.$row_inccur['inc_text'].'</td>
 								<td>';
-								if ($_SESSION['log_delete'] == 1 and ($row_inccur['inctype_id'] == 6 or $row_inccur['inctype_id'] == 7 or$row_inccur['inctype_id'] == 8 or $row_inccur['inctype_id'] == 9 or $row_inccur['inctype_id'] == 10 or $row_inccur['cust_id'] == 0)) echo '<a href="books_income_del.php?inc_id='.$row_inccur['inc_id'].'&inctype='.$row_inccur['inctype_id'].'&cust='.$row_inccur['cust_id'].'" onClick="return randCheck();"><i class="fa fa-remove fa-lg"></i></a>';
+								if ($_SESSION['log_delete'] == 1 and (!in_array($row_inccur['inctype_id'], $no_delete) or $row_inccur['cust_id'] == 0)) echo '<a href="books_income_del.php?inc_id='.$row_inccur['inc_id'].'" onClick="return randCheck();"><i class="fa fa-remove fa-lg"></i></a>';
 				echo '	</td>	
 							</tr>';
 			}

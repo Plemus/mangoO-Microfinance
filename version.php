@@ -3,7 +3,7 @@
 	<h1>mangoO Microfinance Management is released under the</h1>
 	<p><a href="https://www.gnu.org/licenses/gpl-3.0.en.html" target="new">GNU General Public Licence (GNU GPLv3)</a></p>
 	<h1>Version:</h1>
-	<p>v2.5.0 (14.02.2016)</p>
+	<p>v3.0.0 (09.03.2016)</p>
 	<h1>Main Developer:</h1>
 	<p>Johannes M. R&ouml;skamp</p>
 	<h1>Development funded by:</h1>
@@ -35,4 +35,4 @@
 	</p>
 	<h1>Logo designed using:</h1>
 	<p><a href="https://openclipart.org/detail/131485/mango-fruit-by-netalloy" target="new">"Mango Fruit by Netalloy"</a></p>	
-	<h1>To get the latest version or become involved, find the mangoO project on <a href="https://github.com/mangoO-Microfinance/mangoO-stable" target="new">GitHub</a>.</h1>
+	<h1>To get the latest version or become involved, find the mangoO project on <a href="https://github.com/mangoO-Microfinance/mangoO-Microfinance" target="new">GitHub</a>.</h1>

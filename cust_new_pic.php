@@ -1,7 +1,8 @@
 <!DOCTYPE HTML>
 <?PHP
 	require 'functions.php';
-	check_logon();
+	require 'function_pic.php';
+	checkLogin();
 	connect();
 	
 	//Check where Re-direct comes from
@@ -20,6 +21,7 @@
 		//Settings
 		$max_file_size = 1024*2048; // 2048kb
 		$valid_exts = array('jpeg', 'jpg', 'png', 'tif', 'tiff');
+		$path = 'uploads/photos/customers/cust'.$_SESSION['cust_id'].'_';
 		
 		//Thumbnail Sizes
 		$sizes = array(100 => 130, 146 => 190, 230 => 300);
@@ -32,11 +34,11 @@
 			if (in_array($ext, $valid_exts)) {
 				//Resize image
 				foreach ($sizes as $width => $height) {
-					$files[] = resize_img($width, $height);
+					$files[] = resizeImage($width, $height, $path);
 				}
 				$sql_picpath = "UPDATE customer SET cust_pic = '$files[1]' WHERE cust_id = '$_SESSION[cust_id]'";
 				$query_picpath = mysql_query($sql_picpath);
-				check_sql($query_picpath);
+				checkSQL($query_picpath);
 				
 				if ($from == "new")	header('Location: acc_share_buy.php?cust='.$_SESSION['cust_id'].'&rec='.$_SESSION['receipt_no']);
 				else header('Location:customer.php?cust='.$_SESSION['cust_id']);
@@ -45,14 +47,16 @@
 		}
 		else $error_msg = 'Please choose an image smaller than 2048kB.';
 	}
+	
+	$result_customer = getCustomer($_SESSION['cust_id']);
 ?>
 
 <html>
-	<?PHP include_Head('New Picture Upload',1) ?>
+	<?PHP includeHead('New Picture Upload',1) ?>
 	
 	<body>
 		<!-- MENU -->
-		<?PHP include_Menu(2); ?>
+		<?PHP includeMenu(2); ?>
 		<div id="menu_main">
 			<a href="cust_search.php">Search</a>
 			<a href="cust_new.php" id="item_selected">New Customer</a>
@@ -61,7 +65,7 @@
 		</div>
 			
 		<div class="content_center">
-			<p class="heading">Upload Photo for Customer <?PHP echo $_SESSION['cust_id']?></p>
+			<p class="heading">Upload Photo for <?PHP echo $result_customer['cust_name'].' ('.$result_customer['cust_no'].')'; ?></p>
 			
 			<?php if(isset($error_msg)): ?>
 			<p class="alert"><?php echo $error_msg; ?></p>

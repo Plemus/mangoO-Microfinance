@@ -21,7 +21,7 @@
 ?>
 
 <html>
-	<?PHP include_Head('Microfinance Management', 0) ?>	
+	<?PHP includeHead('Microfinance Management', 0) ?>	
 		<link rel="stylesheet" type="text/css" href="css/setup.css" />
 	</head>
 	<body>
@@ -34,7 +34,7 @@
 				<form action="setup.php" method="post" onsubmit="return validate(this)">
 					<input type="text" name="db_host" placeholder="Database Host" required="required" />
 					<input type="text" name="db_user" placeholder="Database User" required="required" />					
-					<input type="text" name="db_pass" placeholder="Database Password" />
+					<input type="password" name="db_pass" placeholder="Database Password" />
 					<input type="text" name="db_name" placeholder="Database Name" required="required" />
 					<select name="db_type">
 						<option value="1">Fresh Database</option>

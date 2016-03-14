@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <?PHP
 	require 'functions.php';
-	check_logon();
+	checkLogin();
 	connect();
 		
 	$rep_year = date("Y",time());
@@ -12,18 +12,18 @@
 	$_SESSION['rep_exp_title'] = $rep_year.'-'.$rep_month.'_loans-pending';
 	
 	//Select Pending Loans from LOANS
-	$sql_loanpend = "SELECT * FROM loans, loanstatus, customer WHERE loans.cust_id = customer.cust_id AND loans.loanstatus_id = loanstatus.loanstatus_id AND loans.loanstatus_id = 1 ORDER BY loan_date, loan_no";
+	$sql_loanpend = "SELECT * FROM loans LEFT JOIN loanstatus ON loans.loanstatus_id = loanstatus.loanstatus_id LEFT JOIN customer ON loans.cust_id = customer.cust_id WHERE loans.loanstatus_id = 1 ORDER BY loan_date, loan_no";
 	$query_loanpend = mysql_query($sql_loanpend);
-	check_sql ($query_loanpend);
+	checkSQL ($query_loanpend);
 ?>
 <html>
-	<?PHP include_Head('Pending Loans',1) ?>	
+	<?PHP includeHead('Pending Loans',1) ?>	
 	
 	<body>
 		
 		<!-- MENU -->
 		<?PHP 
-				include_Menu(3);
+				includeMenu(3);
 		?>
 		
 		<!-- MENU MAIN -->
@@ -66,6 +66,7 @@
 				<?PHP
 				$total_loanpend = 0;
 				$color = 0;
+				$count = 0;
 				while($row_loanpend = mysql_fetch_assoc($query_loanpend)){
 					tr_colored($color);
 					echo '	<td><a href="loan.php?lid='.$row_loanpend['loan_id'].'">'.$row_loanpend['loan_no'].'</a></td>
@@ -76,11 +77,21 @@
 									<td>'.number_format(($row_loanpend['loan_repaytotal'] - $row_loanpend['loan_principal'])).' '.$_SESSION['set_cur'].'</td>
 									<td>'.date("d.m.Y",$row_loanpend['loan_date']).'</td>
 								</tr>';
+					
 					array_push($_SESSION['rep_export'], array("Loan No." => $row_loanpend['loan_no'], "Customer" => $row_loanpend['cust_name'].' ('.$row_loanpend['cust_no'].')', "Status" => $row_loanpend['loanstatus_status'], "Loan Period" => $row_loanpend['loan_period'], "Principal" => $row_loanpend['loan_principal'], "Interest" => ($row_loanpend['loan_repaytotal'] - $row_loanpend['loan_principal']), "Repay Total" => $row_loanpend['loan_repaytotal'], "Applied for on" => date("d.m.Y",$row_loanpend['loan_date'])));
+					
+					$count++;
 				}
 				?>
-			</table>
-			
+				<tr class="balance">
+					<td colspan="7">
+					<?PHP
+					echo $count.' pending loan'; 
+					if ($count != 1) echo 's';
+					?>
+					</td>
+				</tr>
+			</table>			
 		</div>
 	</body>
 </html>

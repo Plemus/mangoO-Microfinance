@@ -1,18 +1,23 @@
 <!DOCTYPE HTML>
 <?PHP
 	require 'functions.php';
-	check_logon();
+	checkLogin();
 	connect();
-	check_custid();
+	getCustID();
 	$timestamp = time();
 		
+	
+	// Get current customer's details
+	$result_cust = getCustomer();
+	$savbalance = getSavingsBalance($_SESSION['cust_id']);	
+	
 	//NEW LOAN-Button
 	if (isset($_POST['newloan'])){
 		
 		//Calculate new Loan Number
 		$sql_loanno = "SELECT loan_id FROM loans WHERE cust_id = '$_SESSION[cust_id]'";
 		$query_loanno = mysql_query($sql_loanno);
-		check_sql($query_loanno);
+		checkSQL($query_loanno);
 		$numberofloans = array();
 		while ($row_loanno = mysql_fetch_array($query_loanno)) $numberofloans[] = $row_loanno;
 		$loan_no = 'L-'.$_SESSION['cust_id'].'-'.(count($numberofloans) + 1);
@@ -43,19 +48,19 @@
 		//Insert Loan into LOANS
 		$sql_insert_loan = "INSERT INTO loans (cust_id, loanstatus_id, loan_no, loan_date, loan_issued, loan_principal, loan_interest, loan_appfee_receipt, loan_fee, loan_rate, loan_period, loan_repaytotal, loan_purpose, loan_sec1, loan_sec2, loan_guarant1, loan_guarant2, loan_guarant3, loan_created, user_id) VALUES ('$_SESSION[cust_id]', '1', '$loan_no', '$loan_date', '0', '$loan_principal', '$loan_interest', '$loan_appfee_receipt', '$loan_fee', '$loan_rate', '$loan_period', $loan_repaytotal, '$loan_purpose', '$loan_sec1', '$loan_sec2', '$loan_guarant1', '$loan_guarant2', '$loan_guarant3', $timestamp, '$_SESSION[log_id]')";
 		$query_insert_loan = mysql_query($sql_insert_loan);
-		check_sql($query_insert_loan);
+		checkSQL($query_insert_loan);
 		
 		//Retrieve LOAN_ID of newly created loan from LOANS and pass to SESSION variable.
 		$sql_newloanid = "SELECT MAX(loan_id) FROM loans WHERE cust_id = '$_SESSION[cust_id]'";
 		$query_newloanid = mysql_query($sql_newloanid);
-		check_sql($query_newloanid);
+		checkSQL($query_newloanid);
 		$result_newloanid = mysql_fetch_assoc($query_newloanid);
 		$_SESSION['loan_id'] = $result_newloanid['MAX(loan_id)'];
 		
 		//Insert Loan Application Fee into INCOMES
-		$sql_inc_laf = "INSERT INTO incomes (cust_id, inctype_id, inc_amount, inc_date, inc_receipt, inc_created, user_id) VALUES ('$_SESSION[cust_id]', '7', '$_SESSION[fee_loanappl]', '$loan_date', '$loan_appfee_receipt', $timestamp, '$_SESSION[log_id]')";
+		$sql_inc_laf = "INSERT INTO incomes (cust_id, loan_id, inctype_id, inc_amount, inc_date, inc_receipt, inc_created, user_id) VALUES ('$_SESSION[cust_id]', '$_SESSION[loan_id]', '7', '$_SESSION[fee_loanappl]', '$loan_date', '$loan_appfee_receipt', $timestamp, '$_SESSION[log_id]')";
 		$query_inc_laf = mysql_query($sql_inc_laf);
-		check_sql($query_inc_laf);
+		checkSQL($query_inc_laf);
 		
 		//Refer to LOAN_SEC.PHP
 		header('Location: loan_sec.php?lid='.$_SESSION['loan_id']);
@@ -64,7 +69,7 @@
 	/* SELECT LEGITIMATE GUARANTORS FROM CUSTOMER */
 	
 	//Select all customers except current one
-	$query_cust = get_custother();
+	$query_cust = getCustOther();
 	
 	$guarantors = array();
 	if ($_SESSION['set_maxguar'] == ""){
@@ -76,7 +81,7 @@
 		//Select all guarantors of active loans
 		$sql_guarantact = "SELECT loan_guarant1, loan_guarant2, loan_guarant3 FROM loans WHERE loanstatus_id = 2";
 		$query_guarantact = mysql_query($sql_guarantact);
-		check_sql($query_guarantact);
+		checkSQL($query_guarantact);
 		$guarantact = array();
 		while($row_guarantact = mysql_fetch_assoc($query_guarantact)){
 			$guarantact[] = $row_guarantact;
@@ -97,10 +102,6 @@
 		}
 	}
 	
-	//Get current customer's details
-	$result_cust = get_customer();
-	$savbalance = get_savbalance();
-	
 	// Compute Maximum and Minimum principal amount
 	if ($_SESSION['set_maxlp'] != "" AND $_SESSION['set_maxpsr'] != ""){
 		if(($savbalance * ($_SESSION['set_maxpsr']/100)) < $_SESSION['set_maxlp']) 
@@ -119,7 +120,7 @@
 ?>
 
 <html>
-	<?PHP include_Head('New Loan',0) ?>	
+	<?PHP includeHead('New Loan',0) ?>	
 		<script type="text/javascript">
 			function calc_rate(feerate){
 				var amount, interest, instal, rate;
@@ -152,7 +153,7 @@
 	
 	<body>
 		<!-- MENU -->
-		<?PHP include_Menu(2); ?>
+		<?PHP includeMenu(2); ?>
 		<div id="menu_main">
 			<a href="customer.php?cust=<?PHP echo $_SESSION['cust_id'] ?>">Back</a>
 			<a href="cust_search.php">Search</a>
@@ -249,11 +250,11 @@
 					<tr>
 						<td style="font-weight:bold;">Date of Applic.:</td>
 						<td>
-							<input type="text" name="loan_date" id="loan_date" placeholder="DD.MM.YYYY" value="<?PHP echo date("d.m.Y",$timestamp) ?>" />
+							<input type="text" id="datepicker" name="loan_date" placeholder="DD.MM.YYYY" value="<?PHP echo date("d.m.Y",$timestamp) ?>" />
 						</td>
 						<td style="font-weight:bold;">Receipt No:</td>
 						<td>
-							<input type="number" class="defaultnumber" name="loan_appfee_receipt" id="loan_appfee_receipt" placeholder="for Loan Appl. Fee" />
+							<input type="number" class="defaultnumber" name="loan_appfee_receipt" placeholder="for Loan Appl. Fee" />
 						</td>
 					</tr>
 				

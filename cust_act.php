@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <?PHP
 	require 'functions.php';
-	check_logon();
+	checkLogin();
 	connect();
 			
 	//Make array for exporting data
@@ -11,15 +11,15 @@
 	$_SESSION['rep_exp_title'] = $rep_year.'-'.$rep_month.'_cust-active';
 	
 	//Select active customers from CUSTOMER
-	$query_custact = get_custact();
+	$query_custact = getCustAct();
 ?>
 	
 <html>
-	<?PHP include_Head('Active Customers',1) ?>	
+	<?PHP includeHead('Active Customers',1) ?>	
 	
 	<body>
 		<!-- MENU -->
-		<?PHP include_Menu(2); ?>
+		<?PHP includeMenu(2); ?>
 		<div id="menu_main">
 			<a href="cust_search.php">Search</a>
 			<a href="cust_new.php">New Customer</a>
@@ -53,12 +53,13 @@
 				<th>Gender</th> 
 				<th>DoB</th> 
 				<th>Occupation</th>
-				<th>Place of Residence</th> 
+				<th>Address</th> 
 				<th>Phone No.</th>
 				<th>Memb. since</th>
 			</tr>
 			<?PHP		
 			$color = 0;
+			$count = 0;
 			while ($row_custact = mysql_fetch_assoc($query_custact)){					
 			
 				tr_colored($color);	//Alternating row colors
@@ -74,9 +75,19 @@
 							<td>'.date("d.m.Y",$row_custact['cust_since']).'</td>
 						</tr>';
 				
-				array_push($_SESSION['rep_export'], array("Cust. No." => $row_custact['cust_no'], "Customer Name" => $row_custact['cust_name'], "DoB" => date("d.m.Y",$row_custact['cust_dob']), "Gender" => $row_custact['custsex_name'], "Occupation" => $row_custact['cust_occup'], "Place of Residence" => $row_custact['cust_address'], "Phone No." => $row_custact['cust_phone'], "Member since" => date("d.m.Y",$row_custact['cust_since'])));
+				array_push($_SESSION['rep_export'], array("Cust. No." => $row_custact['cust_no'], "Customer Name" => $row_custact['cust_name'], "DoB" => date("d.m.Y",$row_custact['cust_dob']), "Gender" => $row_custact['custsex_name'], "Occupation" => $row_custact['cust_occup'], "Address" => $row_custact['cust_address'], "Phone No." => $row_custact['cust_phone'], "Member since" => date("d.m.Y",$row_custact['cust_since'])));
+				
+				$count++;
 			}
 			?>
+			<tr class="balance">
+				<td colspan="8">
+				<?PHP 
+				echo $count.' active customer'; 
+				if ($count != 1) echo 's';
+				?>
+				</td>
+			</tr>
 		</table>
 	</body>
 </html>

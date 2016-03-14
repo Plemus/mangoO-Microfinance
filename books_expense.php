@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <?PHP
 	require 'functions.php';
-	check_logon();
+	checkLogin();
 	connect();
 	$timestamp = time();
 	
@@ -20,23 +20,23 @@
 		//Insert into expenses
 		$sql_expnew = "INSERT INTO expenses (exptype_id, exp_amount, exp_date, exp_text, exp_recipient, exp_receipt, exp_voucher, exp_created, user_id) VALUES ('$exptype_id', '$exp_amount', '$exp_date','$exp_text', '$exp_recipient', '$exp_receipt', '$exp_voucher', '$timestamp', '$_SESSION[log_id]')";
 		$query_expnew = mysql_query($sql_expnew);
-		check_sql($query_expnew);
+		checkSQL($query_expnew);
 	}
 			
-	//Select current expenses from expenses
-	$sixtydays = time() - 5184000;
-	$sql_expcur = "SELECT * FROM expenses, exptype WHERE expenses.exptype_id = exptype.exptype_id AND exp_date > $sixtydays ORDER BY exp_date DESC, exp_voucher DESC";
+	//Select recent expenses from EXPENSES
+	$sixtydays = time() - convertDays(60);
+	$sql_expcur = "SELECT * FROM expenses LEFT JOIN exptype ON expenses.exptype_id = exptype.exptype_id WHERE exp_date > $sixtydays ORDER BY exp_date DESC, exp_voucher DESC";
 	$query_expcur = mysql_query($sql_expcur);
-	check_sql($query_expcur);
+	checkSQL($query_expcur);
 	
-	//Select Types of Expenses from EXPTYPE
-	$sql_exptype = "SELECT * FROM exptype";
+	//Select types of expenses from EXPTYPE
+	$sql_exptype = "SELECT * FROM exptype ORDER BY exptype_type";
 	$query_exptype = mysql_query($sql_exptype);
-	check_sql($query_exptype);
+	checkSQL($query_exptype);
 ?>
 
 <html>
-	<?PHP include_Head('Expenses',0) ?>	
+	<?PHP includeHead('Expenses',0) ?>	
 		<script>
 			function validate(form){
 				fail = validateDate(form.exp_date.value)
@@ -54,11 +54,7 @@
 	<body>
 	
 		<!-- MENU -->
-		<?PHP 
-				include_Menu(4);
-		?>
-	
-		<!-- MENU MAIN -->
+		<?PHP includeMenu(4); ?>
 		<div id="menu_main">
 			<a href="start.php">Back</a>
 			<a href="books_expense.php" id="item_selected">Expenses</a>
@@ -76,7 +72,7 @@
 				<table id="tb_fields">
 					<tr>
 						<td>Date:</td>
-						<td><input type="text" name="exp_date" value="<?PHP echo date("d.m.Y", $timestamp); ?>"/></td>
+						<td><input type="text" id="datepicker" name="exp_date" value="<?PHP echo date("d.m.Y", $timestamp); ?>"/></td>
 						<td>Type:</td>
 						<td>
 							<select name="exptype_id">
@@ -109,11 +105,11 @@
 			</form>
 		</div>
 		
-		<!-- RIGHT SIDE: Expenses of the current month -->
+		<!-- RIGHT SIDE: Recent Expenses -->
 		<div class="content_right">
 			<table id="tb_table">
 				<tr>
-					<th class="title" colspan="7">Current Expenses</th>
+					<th class="title" colspan="7">Recent Expenses</th>
 				</tr>
 				<tr>
 					<th>Date</th>

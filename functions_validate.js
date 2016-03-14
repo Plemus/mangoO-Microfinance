@@ -12,7 +12,7 @@ function validateDob(field) {
 }
 
 function validateAddress(field) {
-	if (field == "") return "Please enter a Place of Residence.\n\n"
+	if (field == "") return "Please enter an Address.\n\n"
 	return ""
 }
 
@@ -136,6 +136,13 @@ function validateUsergroup(field, ugroupnames, ugroup_id) {
 		for (i = 0, len = ugroupnames.length; i < len; i++){
 			if (ugroupnames[i] == field) return "Usergroup name already exists.\nPlease choose a different usergroup name.\n\n"
 		}
+	}
+	return ""
+}
+
+function validateEmployee(field, employees, empl_current) {
+	for (i = 0, len = employees.length; i < len; i++){
+		if (employees[i] == field && field != empl_current) return "Employee already associated with another username.\n\n"
 	}
 	return ""
 }

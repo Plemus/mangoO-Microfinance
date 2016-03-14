@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <?PHP
 	require 'functions.php';
-	check_logon();
+	checkLogin();
 	connect();
 	
 	$rep_year = date("Y",time());
@@ -12,15 +12,15 @@
 	$_SESSION['rep_exp_title'] = $rep_year.'-'.$rep_month.'_cust-inact';
 	
 	//Select inactive customers from CUSTOMER
-	$query_custinact = get_custinact();
+	$query_custinact = getCustInact();
 ?>
 	
 <html>
-	<?PHP include_Head('Inactive Customers',1) ?>	
+	<?PHP includeHead('Inactive Customers',1) ?>	
 	
 	<body>
 		<!-- MENU -->
-		<?PHP include_Menu(2); ?>
+		<?PHP includeMenu(2); ?>
 		<div id="menu_main">
 			<a href="cust_search.php">Search</a>
 			<a href="cust_new.php">New Customer</a>
@@ -54,12 +54,13 @@
 				<th>Gender</th> 
 				<th>DoB</th> 
 				<th>Occupation</th>
-				<th>Place of Residence</th> 
+				<th>Address</th> 
 				<th>Phone No.</th>
 				<th>Memb. since</th>
 			</tr>
 			<?PHP		
 			$color = 0;
+			$count = 0;
 			while ($row_custinact = mysql_fetch_assoc($query_custinact)){					
 				
 				tr_colored($color);	//Alternating row colors
@@ -75,10 +76,19 @@
 							<td>'.date("d.m.Y",$row_custinact['cust_since']).'</td>
 						</tr>';
 				
-				array_push($_SESSION['rep_export'], array("Cust. No." => $row_custinact['cust_no'], "Customer Name" => $row_custinact['cust_name'], "DoB" => date("d.m.Y",$row_custinact['cust_dob']), "Gender" => $row_custinact['custsex_name'], "Occupation" => $row_custinact['cust_occup'], "Place of Residence" => $row_custinact['cust_address'], "Phone No." => $row_custinact['cust_phone'], "Member since" => date("d.m.Y",$row_custinact['cust_since'])));
+				array_push($_SESSION['rep_export'], array("Cust. No." => $row_custinact['cust_no'], "Customer Name" => $row_custinact['cust_name'], "DoB" => date("d.m.Y",$row_custinact['cust_dob']), "Gender" => $row_custinact['custsex_name'], "Occupation" => $row_custinact['cust_occup'], "Address" => $row_custinact['cust_address'], "Phone No." => $row_custinact['cust_phone'], "Member since" => date("d.m.Y",$row_custinact['cust_since'])));
+				
+				$count++;
 			}
 			?>
+			<tr class="balance">
+				<td colspan="8">
+				<?PHP
+				echo $count.' inactive customer'; 
+				if ($count != 1) echo 's';
+				?>
+				</td>
+			</tr>
 		</table>
-		
 	</body>
 </html>
